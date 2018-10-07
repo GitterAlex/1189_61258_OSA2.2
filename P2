@@ -1,0 +1,86 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+//required for open, write and read system calls.
+#include <fcntl.h>
+
+int main(int argc, char** argv)
+{
+    //create pipe
+    int fd[2];
+    //create process list
+    pid_t pid;
+    //if arguments provided are not equal to 3, provide error and exit application
+    if(argc != 3)
+    {
+        printf("This application copies one file to a target file.\n"
+               "In order to do this, there must be the file to be copied as the first argument and the target file to be copied to as the second argument");
+        return 0;
+    }
+    size_t fileSize;
+    char buffer[1000];
+    //create pipe
+    pipe(fd);
+    //opening the files for reading and writing
+    int srcFile = open(argv[1],O_RDWR, 0666);
+    int dstFile = open(argv[2], O_RDWR, 0666);
+    if(srcFile == -1 || dstFile == -1)
+    {
+        perror("Error in opening");
+        exit(1);
+    }
+    //Create a pipe
+    if (pipe(fd) == -1)
+    {
+        fprintf(stderr, "Pipe failed");
+        return -1;
+    }
+    //Fork a child process
+    pid = fork();
+
+    if (pid < 0)
+    {
+        fprintf(stderr, "Fork Failed");
+        return 1;
+    }
+    /*parent process
+    The parent reads the source file "input.txt" and writes it to the pipe. */
+    if(pid > 0)
+    {
+        close(fd[0]);
+        //write to pipe
+        fileSize = read(srcFile, buffer, sizeof(buffer));
+        if (fileSize == -1)
+        {
+            perror("Read failed \n");
+            exit(0);
+        }
+        write(fd[1],buffer,fileSize);
+
+        //close pipe
+        close(fd[1]);
+    }
+
+    /*child process
+    The child reads the file from the pipe and writes it to the destination
+    file copy.txt. */
+    else
+    {
+        //close unused pipe
+        close(fd[1]);
+        //reads file and calculated file size
+        fileSize = read(fd[0], buffer, sizeof(buffer));
+        if (fileSize == -1)
+        {
+            perror("Read failed \n");
+            exit(0);
+        }
+        //write to destination file
+        write(dstFile, buffer, fileSize);
+        //close pipe to free resources.
+        close(fd[0]);
+    }
+
+    return 0;
+}
